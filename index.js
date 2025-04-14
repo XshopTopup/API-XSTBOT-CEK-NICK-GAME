@@ -49,6 +49,89 @@ app.post('/ffstalk', async (req, res) => {
    }
 });
 
+app.get('/api/ml/ganda', async (req, res) => {
+  const { userId, zoneId } = req.query;
+  
+  if (!userId || !zoneId) {
+    return res.status(400).json({
+      "code": 400,
+      "status": "false",
+      "creator": "ceknickname.vercel.app",
+      "message": "Format Salah! Silakan isi ID dan Zone"
+    });
+  }
+
+  try {
+    const response = await axios.get('https://api.mobapay.com/api/app_shop', {
+      params: {
+        app_id: 100000,
+        user_id: userId,
+        server_id: zoneId,
+        country: 'ID',
+        language: 'en',
+        net: 'luckym'
+      },
+      headers: {
+        'User-Agent': 'Mozilla/5.0',
+        'Origin': 'https://www.mobapay.com',
+        'Referer': 'https://www.mobapay.com/',
+        'x-lang': 'en'
+      }
+    });
+
+    const shopInfo = response.data?.data?.shop_info;
+    const items = shopInfo?.good_list || [];
+    const username = shopInfo?.user_info?.username || null;
+
+    if (!shopInfo || !username) {
+      return res.status(404).json({
+        "code": 404,
+        "status": "false",
+        "creator": "ceknickname.vercel.app",
+        "message": "ID tidak ditemukan"
+      });
+    }
+
+    const daftarSku = {
+      "com.moonton.diamond_mt_id_50": "50 + 50",
+      "com.moonton.diamond_mt_id_150": "150 + 150",
+      "com.moonton.diamond_mt_id_250": "250 + 250",
+      "com.moonton.diamond_mt_id_500": "500 + 500"
+    };
+
+    const packages = [];
+    for (const kode in daftarSku) {
+      const found = items.find(item => item.sku === kode);
+      packages.push({
+        package: daftarSku[kode],
+        available: found?.game_can_buy ? true : false
+      });
+    }
+
+    return res.status(200).json({
+      "code": 200,
+      "status": "true",
+      "creator": "ceknickname.vercel.app",
+      "message": "ID berhasil ditemukan",
+      "data": {
+        "username": username,
+        "user_id": userId,
+        "zone": zoneId,
+        "packages": packages
+      }
+    });
+
+  } catch (error) {
+    console.error('Error fetching data:', error);
+    return res.status(500).json({
+      "code": 500,
+      "status": "false",
+      "creator": "ceknickname.vercel.app",
+      "message": "Internal Server Error"
+    });
+  }
+});
+
 app.get('/endpoint', (req, res) => {
    const newDataGame = dataGame.map((item) => {
       return {
