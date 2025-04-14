@@ -50,87 +50,100 @@ app.post('/ffstalk', async (req, res) => {
 });
 
 app.get('/api/ml/ganda', async (req, res) => {
-  const { userId, zoneId } = req.query;
-  
-  if (!userId || !zoneId) {
-    return res.status(400).json({
-      "code": 400,
-      "status": "false",
-      "creator": "ceknickname.vercel.app",
-      "message": "Format Salah! Silakan isi ID dan Zone"
-    });
-  }
+    try {
+        // Changed from req.body to req.query since this is a GET request
+        const { user_id, zone_id } = req.query;
+        
+        if (!user_id || !zone_id) {
+            return res.status(400).json({
+                code: 400,
+                status: false,
+                creator: "ceknickname.vercel.app",
+                message: "user_id and zone_id are required"
+            });
+        }
 
-  try {
-    const response = await axios.get('https://api.mobapay.com/api/app_shop', {
-      params: {
-        app_id: 100000,
-        user_id: userId,
-        server_id: zoneId,
-        country: 'ID',
-        language: 'en',
-        net: 'luckym'
-      },
-      headers: {
-        'User-Agent': 'Mozilla/5.0',
-        'Origin': 'https://www.mobapay.com',
-        'Referer': 'https://www.mobapay.com/',
-        'x-lang': 'en'
-      }
-    });
+        const result = await checkDiamondPackages(user_id, zone_id);
+        
+        if (!result) {
+            return res.status(404).json({
+                code: 404,
+                status: false,
+                creator: "ceknickname.vercel.app",
+                message: "Data not found or error fetching from API"
+            });
+        }
 
-    const shopInfo = response.data?.data?.shop_info;
-    const items = shopInfo?.good_list || [];
-    const username = shopInfo?.user_info?.username || null;
+        res.json({
+            code: 200,
+            status: true,
+            creator: "ceknickname.vercel.app",
+            data: result
+        });
 
-    if (!shopInfo || !username) {
-      return res.status(404).json({
-        "code": 404,
-        "status": "false",
-        "creator": "ceknickname.vercel.app",
-        "message": "ID tidak ditemukan"
-      });
+    } catch (error) {
+        console.error('Error in ML Diamond Check endpoint:', error);
+        res.status(500).json({
+            code: 500,
+            status: false,
+            creator: "ceknickname.vercel.app",
+            message: "Server error"
+        });
     }
-
-    const daftarSku = {
-      "com.moonton.diamond_mt_id_50": "50 + 50",
-      "com.moonton.diamond_mt_id_150": "150 + 150",
-      "com.moonton.diamond_mt_id_250": "250 + 250",
-      "com.moonton.diamond_mt_id_500": "500 + 500"
-    };
-
-    const packages = [];
-    for (const kode in daftarSku) {
-      const found = items.find(item => item.sku === kode);
-      packages.push({
-        package: daftarSku[kode],
-        available: found?.game_can_buy ? true : false
-      });
-    }
-
-    return res.status(200).json({
-      "code": 200,
-      "status": "true",
-      "creator": "ceknickname.vercel.app",
-      "message": "ID berhasil ditemukan",
-      "data": {
-        "username": username,
-        "user_id": userId,
-        "zone": zoneId,
-        "packages": packages
-      }
-    });
-
-  } catch (error) {
-    console.error('Error fetching data:', error);
-    return res.status(500).json({
-      "code": 500,
-      "status": "false",
-      "creator": "ceknickname.vercel.app",
-      "message": "Internal Server Error"
-    });
-  }
 });
+
+async function checkDiamondPackages(user_id, zone_id) {
+    try {
+        const response = await axios.get('https://api.mobapay.com/api/app_shop', {
+            params: {
+                app_id: 100000,
+                user_id: user_id,
+                server_id: zone_id,
+                country: 'ID',
+                language: 'en',
+                net: 'luckym'
+            },
+            headers: {
+                'User-Agent': 'Mozilla/5.0',
+                'Origin': 'https://www.mobapay.com',
+                'Referer': 'https://www.mobapay.com/',
+                'x-lang': 'en'
+            },
+            timeout: 10000 // Add timeout to prevent hanging requests
+        });
+
+        // Check if the response structure is as expected
+        if (!response.data?.data?.shop_info?.good_list) {
+            console.error('Unexpected API response structure:', response.data);
+            return null;
+        }
+
+        const items = response.data.data.shop_info.good_list;
+
+        const diamondPackages = {
+            "com.moonton.diamond_mt_id_50": "50 + 50",
+            "com.moonton.diamond_mt_id_150": "150 + 150",
+            "com.moonton.diamond_mt_id_250": "250 + 250",
+            "com.moonton.diamond_mt_id_500": "500 + 500"
+        };
+
+        let result = 'Paket First Topup yang tersedia:\n\n';
+
+        // Build the result string
+        for (const sku in diamondPackages) {
+            const packageItem = items.find(item => item.sku === sku);
+            const isAvailable = packageItem?.game_can_buy ? true : false;
+            const status = isAvailable ? '✅' : '❌';
+            result += `${status} ${diamondPackages[sku]}\n`;
+        }
+
+        return result;
+
+    } catch (error) {
+        console.error('Error fetching diamond packages:', error.message);
+        return null;
+    }
+}
 
 app.get('/endpoint', (req, res) => {
    const newDataGame = dataGame.map((item) => {
