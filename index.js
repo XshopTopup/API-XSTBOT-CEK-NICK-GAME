@@ -49,101 +49,106 @@ app.post('/ffstalk', async (req, res) => {
    }
 });
 
-app.get('/api/ml/ganda', async (req, res) => {
+// API endpoint to check Mobile Legends first topup packages
+app.get("/api/ml-ganda", async (req, res) => {
     try {
-        // Changed from req.body to req.query since this is a GET request
-        const { user_id, zone_id } = req.query;
-        
-        if (!user_id || !zone_id) {
+        const { id, zone } = req.query;
+        if (!id || !zone) {
             return res.status(400).json({
-                code: 400,
-                status: false,
+                status: 400,
                 creator: "ceknickname.vercel.app",
-                message: "user_id and zone_id are required"
+                message: "Parameter id dan zone wajib diisi.",
             });
         }
 
-        const result = await checkDiamondPackages(user_id, zone_id);
+        // Call MobaPay API to check first topup availability
+        const url = 'https://api.mobapay.com/api/app_shop';
         
-        if (!result) {
-            return res.status(404).json({
-                code: 404,
-                status: false,
-                creator: "ceknickname.vercel.app",
-                message: "Data not found or error fetching from API"
-            });
-        }
-
-        res.json({
-            code: 200,
-            status: true,
-            creator: "ceknickname.vercel.app",
-            data: result
-        });
-
-    } catch (error) {
-        console.error('Error in ML Diamond Check endpoint:', error);
-        res.status(500).json({
-            code: 500,
-            status: false,
-            creator: "ceknickname.vercel.app",
-            message: "Server error"
-        });
-    }
-});
-
-async function checkDiamondPackages(user_id, zone_id) {
-    try {
-        const response = await axios.get('https://api.mobapay.com/api/app_shop', {
+        const config = {
+            method: 'GET',
+            url: url,
             params: {
                 app_id: 100000,
-                user_id: user_id,
-                server_id: zone_id,
+                user_id: id,
+                server_id: zone,
                 country: 'ID',
                 language: 'en',
                 net: 'luckym'
             },
             headers: {
-                'User-Agent': 'Mozilla/5.0',
+                'User-Agent': 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Mobile Safari/537.36',
+                'Accept': 'application/json, text/plain, */*',
                 'Origin': 'https://www.mobapay.com',
                 'Referer': 'https://www.mobapay.com/',
-                'x-lang': 'en'
-            },
-            timeout: 10000 // Add timeout to prevent hanging requests
-        });
+                'x-lang': 'en',
+                'Sec-Fetch-Site': 'same-site',
+                'Sec-Fetch-Mode': 'cors',
+                'Sec-Fetch-Dest': 'empty',
+                'Accept-Language': 'id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7'
+            }
+        };
 
-        // Check if the response structure is as expected
-        if (!response.data?.data?.shop_info?.good_list) {
-            console.error('Unexpected API response structure:', response.data);
-            return null;
+        const response = await axios.request(config);
+        const items = response.data?.data?.shop_info?.good_list || [];
+
+        if (!response.data?.data?.shop_info) {
+            return res.status(404).json({
+                status: 404,
+                creator: "ceknickname.vercel.app",
+                message: "ID tidak ditemukan"
+            });
         }
 
-        const items = response.data.data.shop_info.good_list;
-
-        const diamondPackages = {
+        const daftarSku = {
             "com.moonton.diamond_mt_id_50": "50 + 50",
             "com.moonton.diamond_mt_id_150": "150 + 150",
             "com.moonton.diamond_mt_id_250": "250 + 250",
             "com.moonton.diamond_mt_id_500": "500 + 500"
         };
 
-        let result = 'Paket First Topup yang tersedia:\n\n';
-
-        // Build the result string
-        for (const sku in diamondPackages) {
-            const packageItem = items.find(item => item.sku === sku);
-            const isAvailable = packageItem?.game_can_buy ? true : false;
-            const status = isAvailable ? '✅' : '❌';
-            result += `${status} ${diamondPackages[sku]}\n`;
+        const packages = [];
+        for (const kode in daftarSku) {
+            const found = items.find(item => item.sku === kode);
+            packages.push({
+                package: daftarSku[kode],
+                available: found?.game_can_buy ? true : false
+            });
         }
 
-        return result;
-
+        return res.status(200).json({
+            status: 200,
+            creator: "ceknickname.vercel.app",
+            message: "Data First Topup berhasil ditemukan",
+            result: {
+                username: response.data?.data?.shop_info?.user_name || "Unknown",
+                user_id: id,
+                zone: zone,
+                packages: packages
+            }
+        });
     } catch (error) {
-        console.error('Error fetching diamond packages:', error.message);
-        return null;
+        console.error("Error saat melakukan ML First Topup Check:", error.message);
+        if (error.response) {
+            return res.status(error.response.status).json({
+                status: error.response.status,
+                creator: "ceknickname.vercel.app",
+                message: `Kesalahan dari server tujuan: ${error.response.data}`,
+            });
+        } else if (error.code === "ECONNABORTED") {
+            return res.status(504).json({
+                status: 504,
+                creator: "ceknickname.vercel.app",
+                message: "Timeout: API tidak merespons dalam waktu yang ditentukan.",
+            });
+        } else {
+            return res.status(500).json({
+                status: 500,
+                creator: "ceknickname.vercel.app",
+                message: `Terjadi kesalahan: ${error.message}`,
+            });
+        }
     }
-}
+});
 
 app.get('/endpoint', (req, res) => {
    const newDataGame = dataGame.map((item) => {
