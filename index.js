@@ -74,6 +74,43 @@ app.get('/api/mlbb/ganda', async (req, res) => {
                 data: {
                     username: mlFirstTopup.username || null,
                     user_id: id,
+// API endpoint to check Mobile Legends first topup package
+app.get('/api/mlbb/ganda', async (req, res) => {
+    // Changed from req.params to req.query since this is a GET request with query parameters
+    const { id, zone } = req.query;
+    
+    // Add validation for required parameters
+    if (!id || !zone) {
+        return res.status(400).json({
+            code: 400,
+            status: false,
+            creator: 'ceknickname.vercel.app',
+            message: 'Missing required parameters: id and zone are required'
+        });
+    }
+    
+    try {
+        const mlFirstTopup = await MbFirstTopup(id, zone);
+        
+        if (mlFirstTopup === null) {
+            return res.status(500).json({
+                code: 500,
+                status: false,
+                creator: 'ceknickname.vercel.app',
+                message: 'Internal Server Error'
+            });
+        } else if (mlFirstTopup.code === 404) {
+            // Pass through the 404 error from the MbFirstTopup function
+            return res.status(404).json(mlFirstTopup);
+        } else {
+            return res.status(200).json({
+                code: 200,
+                status: true,
+                creator: 'ceknickname.vercel.app',
+                message: 'First Topup packages retrieved successfully',
+                data: {
+                    username: mlFirstTopup.username || null,
+                    user_id: id,
                     zone: zone || null,
                     packages: mlFirstTopup.packages || mlFirstTopup
                 }
@@ -90,6 +127,7 @@ app.get('/api/mlbb/ganda', async (req, res) => {
     }
 });
 
+// Also modify the MbFirstTopup function to correctly return 404 errors
 async function MbFirstTopup(user_id, zone_id) {
     try {
         const res = await fetch(
@@ -144,19 +182,19 @@ async function MbFirstTopup(user_id, zone_id) {
                 packages: packageList
             };
         } else {
-            return res.status(404).json({
+            // Return proper 404 object instead of using res.status
+            return {
                 code: 404,
                 status: false,
                 creator: 'ceknickname.vercel.app',
                 message: 'ID tidak ditemukan'
-            });
+            };
         }
     } catch (err) {
         console.log(err);
         return null;
     }
 }
-
 
 
 app.get('/endpoint', (req, res) => {
