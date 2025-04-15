@@ -51,8 +51,7 @@ app.post('/ffstalk', async (req, res) => {
    }
 });
 
-// API endpoint to check Mobile Legends first topup packages
-app.get("/api/ml-ganda", async (req, res) => {
+// API endpoint to check Mobile Legends first topup packag
 app.get('/api/mlbb/ganda', async (req, res) => {
     const { id, zone } = req.params;
     
